@@ -806,8 +806,9 @@ function animate() {
   time++;
   
   // Clear
-  ctx.fillStyle = 'var(--bg)';
+  ctx.fillStyle = '#0a0e17';
   ctx.clearRect(0, 0, W, H);
+  ctx.fillRect(0, 0, W, H);
   
   // Background grid
   drawBackgroundGrid();
