@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anthropic IPO Pipeline Visualizer — The AI Bubble Journey</title>
+<style>
+  :root {
+    --bg: #0a0e17;
+    --panel-bg: #111827;
+    --border: #1e293b;
+    --text: #e2e8f0;
+    --text-dim: #94a3b8;
+    --accent: #22d3ee;
+    --accent2: #a78bfa;
+    --accent3: #f59e0b;
+    --green: #10b981;
+    --red: #ef4444;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+  }
+  canvas {
+    display: block;
+    position: absolute;
+    top: 0; left: 0;
+  }
+  #header {
+    position: fixed;
+    top: 12px; left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    z-index: 10;
+    pointer-events: none;
+  }
+  #header h1 {
+    font-size: clamp(14px, 2.5vw, 22px);
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: var(--text);
+    text-shadow: 0 0 20px rgba(34,211,238,0.3);
+  }
+  #header h1 span { color: var(--accent); }
+  #header p {
+    font-size: clamp(10px, 1.5vw, 13px);
+    color: var(--text-dim);
+    margin-top: 4px;
+  }
+  #controls {
+    position: fixed;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    z-index: 10;
+    background: rgba(17,24,39,0.9);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 10px 20px;
+    backdrop-filter: blur(8px);
+  }
+  #controls button {
+    background: var(--border);
+    color: var(--text);
+    border: none;
+    padding: 6px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.2s;
+  }
+  #controls button:hover { background: var(--accent); color: #000; }
+  #controls button.active { background: var(--accent); color: #000; }
+  .slider-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+  .slider-group label {
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 0.5px;
+  }
+  input[type="range"] {
+    -webkit-appearance: none;
+    width: 140px;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    background: var(--accent);
+    border-radius: 50%;
+    cursor: pointer;
+  }
+  #info-panel {
+    position: fixed;
+    right: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 220px;
+    background: rgba(17,24,39,0.95);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    z-index: 10;
+    backdrop-filter: blur(8px);
+    display: none;
+  }
+  #info-panel.visible { display: block; }
+  #info-panel h3 {
+    font-size: 14px;
+    color: var(--accent);
+    margin-bottom: 8px;
+  }
+  #info-panel .stat {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    padding: 4px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  #info-panel .stat .label { color: var(--text-dim); }
+  #info-panel .stat .value { color: var(--text); font-weight: 600; }
+  #bubble-meter {
+    position: fixed;
+    left: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 180px;
+    z-index: 10;
+  }
+  #bubble-meter .meter-label {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-bottom: 4px;
+    text-align: center;
+  }
+  .meter-bar {
+    height: 8px;
+    background: var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+  }
+  .meter-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.5s, background 0.5s;
+  }
+  .meter-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 9px;
+    color: var(--text-dim);
+    margin-top: 2px;
+  }
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+
+<div id="header">
+  <h1><span>AI IPO Pipeline</span> — From Seed to Public Market</h1>
+  <p>Anthropic S-1 Filing Visualization • Drag slider to scrub timeline</p>
+</div>
+
+<div id="bubble-meter">
+  <div class="meter-label">AI Bubble Intensity</div>
+  <div class="meter-bar">
+    <div class="meter-fill" id="meter-fill" style="width:72%;background:var(--accent3)"></div>
+  </div>
+  <div class="meter-labels">
+    <span>2024</span><span>2025</span><span>2026</span><span>Peak</span>
+  </div>
+</div>
+
+<div id="info-panel">
+  <h3 id="info-title">Funding Stage</h3>
+  <div id="info-stats"></div>
+</div>
+
+<div id="controls">
+  <button id="btn-play">▶ Play</button>
+  <button id="btn-seed">Seed</button>
+  <button id="btn-seriesA">Series A</button>
+  <button id="btn-seriesD">Series D</button>
+  <button id="btn-s1">S-1</button>
+  <button id="btn-ipo">IPO</button>
+  <div class="slider-group">
+    <label>Valuation Bubble</label>
+    <input type="range" id="bubble-slider" min="0" max="100" value="72">
+  </div>
+  <div class="slider-group">
+    <label>Particle Density</label>
+    <input type="range" id="density-slider" min="10" max="100" value="60">
+  </div>
+</div>
+
+<script>
+// ============ MAIN APP ============
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+let W, H;
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// IPO stages for the pipeline
+const stages = [
+  { id: 'seed', label: 'Seed', x: 0.08, y: 0.35, color: '#64748b', val: '0.5M', raised: '$100K', employees: 3 },
+  { id: 'seriesA', label: 'Series A', x: 0.20, y: 0.28, color: '#818cf8', val: '2M', raised: '$15M', employees: 25 },
+  { id: 'seriesB', label: 'Series B', x: 0.32, y: 0.38, color: '#3b82f6', val: '8M', raised: '$143M', employees: 150 },
+  { id: 'seriesC', label: 'Series C', x: 0.44, y: 0.25, color: '#06b6d4', val: '20M', raised: '$538M', employees: 500 },
+  { id: 'seriesD', label: 'Series D', x: 0.56, y: 0.36, color: '#10b981', val: '36M', raised: '$4B', employees: 2000 },
+  { id: 'seriesE', label: 'Series E', x: 0.68, y: 0.22, color: '#f59e0b', val: '61M', raised: '$4.3B', employees: 3000 },
+  { id: 's1', label: 'Draft S-1', x: 0.80, y: 0.33, color: '#ef4444', val: '965M', raised: 'Filing', employees: 3500 },
+  { id: 'ipo', label: 'Public', x: 0.92, y: 0.20, color: '#ec4899', val: '965B', raised: 'TBD', employees: 4000 }
+];
+
+const aiCompanies = [
+  { name: 'OpenAI', val: '157B', color: '#10b981', yOff: -0.06 },
+  { name: 'Anthropic', val: '965B', color: '#ef4444', yOff: 0 },
+  { name: 'Mistral', val: '27B', color: '#f59e0b', yOff: 0.06 },
+  { name: 'Stability', val: '4B', color: '#8b5cf6', yOff: 0.12 },
+  { name: 'Cohere', val: '3B', color: '#3b82f6', yOff: -0.12 },
+  { name: 'Adept', val: '1B', color: '#06b6d4', yOff: -0.18 },
+  { name: 'Inflection', val: '6B', color: '#ec4899', yOff: 0.18 },
+  { name: 'Character', val: '3B', color: '#64748b', yOff: 0.24 }
+];
+
+// State
+let bubbleLevel = 0.72;
+let densityLevel = 0.6;
+let progress = 0; // 0-1, 0 = seed, 1 = IPO
+let playing = false;
+let time = 0;
+let particles = [];
+let selectedCompany = null;
+let selectedStage = null;
+let showGrid = true;
+
+// Particle class
+class Particle {
+  constructor() {
+    this.reset();
+  }
+  reset() {
+    // Flow between stages
+    const src = Math.floor(Math.random() * (stages.length - 1));
+    const dst = src + 1;
+    this.src = stages[src];
+    this.dst = stages[dst];
+    this.t = Math.random();
+    this.speed = 0.002 + Math.random() * 0.003;
+    this.size = 2 + Math.random() * 2;
+    this.alpha = 0.4 + Math.random() * 0.6;
+    this.wobble = Math.random() * Math.PI * 2;
+    this.wobbleSpeed = 0.02 + Math.random() * 0.03;
+  }
+  update() {
+    this.t += this.speed;
+    this.wobble += this.wobbleSpeed;
+    if (this.t > 1) {
+      this.t = 0;
+      this.reset();
+    }
+  }
+  draw(ctx) {
+    const sx = this.src.x * W + Math.sin(this.wobble) * 8;
+    const sy = this.src.y * H;
+    const ex = this.dst.x * W + Math.sin(this.wobble * 1.3) * 8;
+    const ey = this.dst.y * H;
+    const x = sx + (ex - sx) * this.t;
+    const y = sy + (ey - sy) * this.t;
+    const localProgress = progress;
+    const stageProgress = this.t;
+    
+    // Only show if this stage is reached
+    const srcProgress = this.src.x;
+    const dstProgress = this.dst.x;
+    
+    const alpha = this.alpha;
+    ctx.globalAlpha = alpha * Math.min(1, localProgress / 0.15);
+    ctx.fillStyle = this.src.color;
+    ctx.beginPath();
+    ctx.arc(x, y, this.size, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    
+    // Trail
+    ctx.strokeStyle = this.src.color;
+    ctx.globalAlpha = alpha * 0.15;
+    ctx.lineWidth = this.size * 0.5;
+    ctx.beginPath();
+    ctx.moveTo(sx + Math.sin(this.wobble) * 8, sy);
+    const trailLen = Math.min(10, stageProgress * 15);
+    for (let i = 0; i < trailLen; i++) {
+      const tt = Math.max(0, stageProgress - i * 0.02);
+      const tx = sx + (ex - sx) * tt;
+      const ty = sy + (ey - sy) * tt;
+      ctx.lineTo(tx, ty);
+    }
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+}
+
+// Background floating particles
+class FloatParticle {
+  constructor() {
+    this.x = Math.random();
+    this.y = Math.random();
+    this.vx = (Math.random() - 0.5) * 0.0003;
+    this.vy = (Math.random() - 0.5) * 0.0003;
+    this.size = 1 + Math.random() * 1.5;
+    this.alpha = 0.1 + Math.random() * 0.2;
+  }
+  update() {
+    this.x += this.vx;
+    this.y += this.vy;
+    if (this.x < 0) this.x = 1;
+    if (this.x > 1) this.x = 0;
+    if (this.y < 0) this.y = 1;
+    if (this.y > 1) this.y = 0;
+  }
+  draw(ctx) {
+    ctx.globalAlpha = this.alpha;
+    ctx.fillStyle = '#475569';
+    ctx.beginPath();
+    ctx.arc(this.x * W, this.y * H, this.size, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+}
+
+// Initialize particles
+function initParticles() {
+  const count = Math.floor(60 * densityLevel);
+  particles = [];
+  for (let i = 0; i < count; i++) {
+    particles.push(new Particle());
+  }
+}
+initParticles();
+
+document.getElementById('density-slider').addEventListener('input', (e) => {
+  densityLevel = e.target.value / 100;
+  initParticles();
+});
+
+document.getElementById('bubble-slider').addEventListener('input', (e) => {
+  bubbleLevel = e.target.value / 100;
+  const fill = document.getElementById('meter-fill');
+  fill.style.width = (bubbleLevel * 100) + '%';
+  if (bubbleLevel > 0.8) fill.style.background = 'var(--red)';
+  else if (bubbleLevel > 0.5) fill.style.background = 'var(--accent3)';
+  else fill.style.background = 'var(--green)';
+});
+
+// Drawing functions
+function drawBackgroundGrid() {
+  if (!showGrid) return;
+  ctx.strokeStyle = 'rgba(30,41,59,0.5)';
+  ctx.lineWidth = 0.5;
+  const spacing = 40;
+  for (let x = 0; x < W; x += spacing) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, H);
+    ctx.stroke();
+  }
+  for (let y = 0; y < H; y += spacing) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(W, y);
+    ctx.stroke();
+  }
+}
+
+function drawPipeline() {
+  const pipProgress = progress;
+  
+  // Draw connections between stages
+  for (let i = 0; i < stages.length - 1; i++) {
+    const s = stages[i];
+    const e = stages[i + 1];
+    const sx = s.x * W;
+    const sy = s.y * H;
+    const ex = e.x * W;
+    const ey = e.y * H;
+    
+    const stageProgress = (i + 1) / stages.length;
+    const isUnlocked = pipProgress >= stageProgress * 0.9;
+    if (!isUnlocked) continue;
+    
+    // Curved connection
+    const mx = (sx + ex) / 2;
+    const my = Math.min(sy, ey) - 30 - Math.sin(time * 0.01 + i) * 5;
+    
+    const alpha = Math.min(1, (pipProgress - stageProgress * 0.8) * 5);
+    ctx.globalAlpha = alpha * 0.3;
+    ctx.strokeStyle = '#334155';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([8, 4]);
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    ctx.quadraticCurveTo(mx, my, ex, ey);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    
+    // Arrow marker at destination
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = e.color;
+    const angle = Math.atan2(ey - sy, ex - sx);
+    ctx.beginPath();
+    ctx.moveTo(ex, ey);
+    ctx.lineTo(ex - 10 * Math.cos(angle - 0.4), ey - 10 * Math.sin(angle - 0.4));
+    ctx.lineTo(ex - 10 * Math.cos(angle + 0.4), ey - 10 * Math.sin(angle + 0.4));
+    ctx.closePath();
+    ctx.fill();
+    
+    ctx.globalAlpha = 1;
+  }
+}
+
+function drawStageNodes() {
+  const pipProgress = progress;
+  
+  for (let i = 0; i < stages.length; i++) {
+    const s = stages[i];
+    const nodeProgress = s.x;
+    const isUnlocked = pipProgress >= nodeProgress * 0.95;
+    const pulse = Math.sin(time * 0.05 + i * 0.8) * 0.15;
+    
+    const nx = s.x * W;
+    const ny = s.y * H + Math.sin(time * 0.02 + i * 0.5) * 3;
+    
+    if (!isUnlocked) {
+      // Draw dimmed node
+      ctx.globalAlpha = 0.2;
+      ctx.fillStyle = '#334155';
+      ctx.beginPath();
+      ctx.arc(nx, ny, 22, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      continue;
+    }
+    
+    // Outer glow
+    const glowSize = 30 + pulse * 20 + bubbleLevel * 10 * Math.sin(time * 0.03 + i);
+    const gradient = ctx.createRadialGradient(nx, ny, 10, nx, ny, glowSize);
+    gradient.addColorStop(0, s.color + '40');
+    gradient.addColorStop(0.5, s.color + '15');
+    gradient.addColorStop(1, 'transparent');
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(nx, ny, glowSize, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Core node
+    ctx.fillStyle = s.color;
+    ctx.globalAlpha = isUnlocked ? 1 : 0.2;
+    ctx.beginPath();
+    ctx.arc(nx, ny, 16, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Inner highlight
+    ctx.fillStyle = '#ffffff';
+    ctx.globalAlpha = 0.15;
+    ctx.beginPath();
+    ctx.arc(nx - 3, ny - 3, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    
+    // Label
+    ctx.fillStyle = s.color;
+    ctx.font = 'bold 11px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(s.label.toUpperCase(), nx, ny - 28);
+    
+    // Valuation
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '10px system-ui, sans-serif';
+    ctx.fillText('$' + s.val, nx, ny + 32);
+    
+    // Raised amount
+    ctx.fillStyle = '#64748b';
+    ctx.font = '9px system-ui, sans-serif';
+    ctx.fillText(s.raised, nx, ny + 44);
+  }
+}
+
+function drawCompanyOrbit() {
+  const centerX = W * 0.55;
+  const centerY = H * 0.65;
+  const radius = Math.min(W, H) * 0.15 + bubbleLevel * 20 * Math.sin(time * 0.02);
+  
+  // Orbital rings
+  for (let r = 0; r < 3; r++) {
+    const ringRadius = radius * (0.5 + r * 0.3);
+    ctx.strokeStyle = 'rgba(30,41,59,0.4)';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, ringRadius, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  
+  // AI Companies orbiting
+  for (let i = 0; i < aiCompanies.length; i++) {
+    const comp = aiCompanies[i];
+    const angle = (time * 0.003 + i * (Math.PI * 2 / aiCompanies.length));
+    const cr = radius + Math.sin(time * 0.01 + i) * 5;
+    const cx = centerX + Math.cos(angle) * cr * 0.8;
+    const cy = centerY + Math.sin(angle) * cr * 0.5 + comp.yOff * H;
+    
+    // Node
+    const nodeSize = 6 + Math.log(parseInt(comp.val) / 1e9) * 3;
+    const alpha = Math.min(1, (progress - i * 0.08) * 3);
+    ctx.globalAlpha = alpha;
+    
+    // Glow
+    const glow = ctx.createRadialGradient(cx, cy, nodeSize * 0.3, cx, cy, nodeSize * 3);
+    glow.addColorStop(0, comp.color + '60');
+    glow.addColorStop(1, 'transparent');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(cx, cy, nodeSize * 3, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Core
+    ctx.fillStyle = comp.color;
+    ctx.beginPath();
+    ctx.arc(cx, cy, nodeSize * 0.5, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Name
+    ctx.fillStyle = '#e2e8f0';
+    ctx.font = '10px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(comp.name, cx, cy - nodeSize * 2);
+    
+    // Valuation
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '9px system-ui, sans-serif';
+    ctx.fillText(comp.val, cx, cy + nodeSize * 2 + 10);
+    
+    ctx.globalAlpha = 1;
+  }
+}
+
+function drawTimeline() {
+  // Horizontal timeline at bottom
+  const barY = H * 0.85;
+  const barWidth = W * 0.7;
+  const barX = (W - barWidth) / 2;
+  
+  // Bar
+  ctx.fillStyle = '#1e293b';
+  ctx.fillRect(barX, barY, barWidth, 6);
+  
+  // Progress fill
+  const fillWidth = barWidth * progress;
+  const gradient = ctx.createLinearGradient(barX, barY, barX + fillWidth, barY);
+  gradient.addColorStop(0, '#64748b');
+  gradient.addColorStop(0.5, '#3b82f6');
+  gradient.addColorStop(0.8, '#ef4444');
+  gradient.addColorStop(1, '#ec4899');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(barX, barY, fillWidth, 6);
+  
+  // Stage markers
+  for (let i = 0; i < stages.length; i++) {
+    const s = stages[i];
+    const mx = s.x * W;
+    const isReached = progress >= s.x * 0.95;
+    
+    ctx.fillStyle = isReached ? s.color : '#334155';
+    ctx.beginPath();
+    ctx.arc(mx, barY + 3, 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  
+  // Current indicator
+  const currentX = barX + fillWidth;
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(currentX, barY + 3, 5, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawRevenueChart() {
+  // Small revenue waterfall on the left
+  const chartX = W * 0.02;
+  const chartY = H * 0.5;
+  const chartW = W * 0.15;
+  const chartH = H * 0.3;
+  
+  const revs = [100, 1500, 143000, 538000, 4000000, 4300000, 'IPO'];
+  const labels = ['Series A', 'Series B', 'Series C', 'Series D', 'Series E', 'S-1', 'IPO'];
+  const colors = ['#818cf8', '#3b82f6', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#ec4899'];
+  
+  const maxVal = 4.3e9;
+  
+  for (let i = 0; i < labels.length; i++) {
+    const bx = chartX + (i / labels.length) * chartW;
+    const bw = chartW / labels.length * 0.7;
+    const val = revs[i] === 'IPO' ? 965e9 : (typeof revs[i] === 'string' ? 4.3e9 : revs[i] * 1e6);
+    const bh = Math.min(chartH, (val / maxVal) * chartH);
+    const by = chartY + chartH - bh;
+    const isReached = progress >= i / labels.length;
+    
+    if (!isReached) {
+      ctx.globalAlpha = 0.2;
+      ctx.fillStyle = '#334155';
+      ctx.fillRect(bx, chartY + chartH - chartH * 0.1, bw, chartH * 0.1);
+      ctx.globalAlpha = 1;
+      continue;
+    }
+    
+    // Bar glow
+    const glow = ctx.createRadialGradient(bx + bw/2, by + bh/2, 0, bx + bw/2, by + bh/2, bw);
+    glow.addColorStop(0, colors[i] + '30');
+    glow.addColorStop(1, 'transparent');
+    ctx.fillStyle = glow;
+    ctx.fillRect(bx - bw, by - bw/2, bw * 3, bh + bw);
+    
+    // Bar
+    ctx.fillStyle = colors[i];
+    ctx.globalAlpha = 0.8;
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.globalAlpha = 1;
+    
+    // Label
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '8px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(labels[i], bx + bw/2, chartY + chartH + 12);
+  }
+}
+
+function drawSECDocument() {
+  // SEC filing document visualization
+  const docX = W * 0.78;
+  const docY = H * 0.55;
+  const docW = 160;
+  const docH = 120;
+  
+  const isReached = progress > 0.7;
+  if (!isReached) return;
+  
+  ctx.globalAlpha = isReached ? 1 : 0.3;
+  
+  // Document shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.fillRect(docX + 4, docY + 4, docW, docH);
+  
+  // Document body
+  ctx.fillStyle = '#1e293b';
+  ctx.fillRect(docX, docY, docW, docH);
+  ctx.strokeStyle = '#334155';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(docX, docY, docW, docH);
+  
+  // SEC header
+  ctx.fillStyle = '#ef4444';
+  ctx.font = 'bold 10px system-ui';
+  ctx.textAlign = 'left';
+  ctx.fillText('SEC FILING — FORM S-1', docX + 8, docY + 16);
+  
+  // Lines of text
+  ctx.fillStyle = '#64748b';
+  ctx.font = '8px monospace';
+  const lines = [
+    'Registration Statement',
+    'Under Securities Act of 1933',
+    '',
+    'Company: Anthropic PBC',
+    'Filing Date: May 2026',
+    'Shares: TBA',
+    'Lead Underwriters: TBA',
+    '',
+    'Use of Proceeds:',
+    '— AI infrastructure expansion',
+    '— Model training compute',
+    '— General corporate purposes'
+  ];
+  lines.forEach((line, i) => {
+    ctx.fillStyle = line.includes('Anthropic') || line.includes('2026') ? '#e2e8f0' : '#475569';
+    ctx.fillText(line, docX + 8, docY + 34 + i * 9);
+  });
+  
+  // Stamp effect
+  if (progress > 0.85) {
+    const stampAlpha = Math.min(1, (progress - 0.85) * 10);
+    ctx.globalAlpha = stampAlpha;
+    ctx.save();
+    ctx.translate(docX + docW / 2, docY + docH / 2);
+    ctx.rotate(-0.3);
+    ctx.strokeStyle = '#10b981';
+    ctx.lineWidth = 3;
+    ctx.setLineDash([4, 2]);
+    ctx.strokeRect(-55, -20, 110, 40);
+    ctx.fillStyle = '#10b981';
+    ctx.font = 'bold 12px system-ui';
+    ctx.textAlign = 'center';
+    ctx.fillText('FILED', 0, 5);
+    ctx.restore();
+  }
+  
+  ctx.globalAlpha = 1;
+}
+
+function drawBubbleOverlay() {
+  // AI Bubble particles
+  const bubbleCount = Math.floor(bubbleLevel * 20);
+  for (let i = 0; i < bubbleCount; i++) {
+    const bx = Math.random() * W;
+    const by = H * 0.3 + Math.sin(time * 0.01 + i * 0.5) * 100;
+    const bsize = 3 + Math.sin(time * 0.02 + i) * 2;
+    ctx.globalAlpha = 0.1 + bubbleLevel * 0.15;
+    ctx.fillStyle = '#22d3ee';
+    ctx.beginPath();
+    ctx.arc(bx, by, bsize, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawStatus() {
+  const statusY = H * 0.12;
+  const pipProgress = progress;
+  
+  // Current stage label
+  let currentStage = 'Preparation';
+  let stageDesc = 'Anthropic is preparing for its IPO journey';
+  
+  if (pipProgress > 0.8) {
+    currentStage = 'Post-S-1';
+    stageDesc = 'Draft S-1 filed • Valuation: $965B • Revenue multiple: ~100x';
+  } else if (pipProgress > 0.65) {
+    currentStage = 'Series E+';
+    stageDesc = 'Last private round at $61M per share';
+  } else if (pipProgress > 0.5) {
+    currentStage = 'Series D';
+    stageDesc = 'SoftBank, Mubadala lead $4B round';
+  } else if (pipProgress > 0.35) {
+    currentStage = 'Series C';
+    stageDesc = 'Google, OpenAI invest';
+  } else if (pipProgress > 0.2) {
+    currentStage = 'Series A/B';
+    stageDesc = 'Early institutional investment';
+  }
+  
+  ctx.fillStyle = '#e2e8f0';
+  ctx.font = 'bold 14px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('STAGE: ' + currentStage, W / 2, statusY);
+  
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '12px system-ui, sans-serif';
+  ctx.fillText(stageDesc, W / 2, statusY + 22);
+  
+  // Valuation multiplier
+  const multiplier = 965;
+  ctx.fillStyle = '#f59e0b';
+  ctx.font = 'bold 18px system-ui';
+  ctx.fillText(`Valuation: $${multiplier}B`, W / 2, statusY + 50);
+  
+  // Revenue multiple indicator
+  const revMult = Math.floor(Math.random() * 50) + 80;
+  ctx.fillStyle = '#ef4444';
+  ctx.font = '13px system-ui';
+  ctx.fillText(`~${revMult}x Revenue Multiple`, W / 2, statusY + 72);
+}
+
+// Main loop
+let lastFloatParticles = null;
+function initFloatParticles() {
+  const count = 40;
+  lastFloatParticles = [];
+  for (let i = 0; i < count; i++) {
+    lastFloatParticles.push(new FloatParticle());
+  }
+}
+initFloatParticles();
+
+function animate() {
+  time++;
+  
+  // Clear
+  ctx.fillStyle = 'var(--bg)';
+  ctx.clearRect(0, 0, W, H);
+  
+  // Background grid
+  drawBackgroundGrid();
+  
+  // Background floaters
+  for (let i = 0; i < lastFloatParticles.length; i++) {
+    lastFloatParticles[i].update();
+    lastFloatParticles[i].draw(ctx);
+  }
+  
+  // Bubble overlay particles
+  drawBubbleOverlay();
+  
+  // Pipeline
+  drawPipeline();
+  drawStageNodes();
+  
+  // Company orbit
+  drawCompanyOrbit();
+  
+  // Revenue chart
+  drawRevenueChart();
+  
+  // SEC document
+  drawSECDocument();
+  
+  // Timeline
+  drawTimeline();
+  
+  // Status text
+  drawStatus();
+  
+  // Particles
+  for (const p of particles) {
+    p.update();
+    p.draw(ctx);
+  }
+  
+  // Update progress if playing
+  if (playing) {
+    progress += 0.0008;
+    if (progress > 1) {
+      progress = 1;
+      playing = false;
+      document.getElementById('btn-play').textContent = '▶ Play';
+    }
+  }
+  
+  requestAnimationFrame(animate);
+}
+
+// Controls
+document.getElementById('btn-play').addEventListener('click', () => {
+  playing = !playing;
+  document.getElementById('btn-play').textContent = playing ? '⏸ Pause' : '▶ Play';
+});
+
+function setProgress(val) {
+  progress = val;
+}
+
+document.getElementById('btn-seed').addEventListener('click', () => {
+  setProgress(0.05);
+  playing = false;
+  document.getElementById('btn-play').textContent = '▶ Play';
+});
+document.getElementById('btn-seriesA').addEventListener('click', () => {
+  setProgress(0.25);
+  playing = false;
+  document.getElementById('btn-play').textContent = '▶ Play';
+});
+document.getElementById('btn-seriesD').addEventListener('click', () => {
+  setProgress(0.55);
+  playing = false;
+  document.getElementById('btn-play').textContent = '▶ Play';
+});
+document.getElementById('btn-s1').addEventListener('click', () => {
+  setProgress(0.82);
+  playing = false;
+  document.getElementById('btn-play').textContent = '▶ Play';
+});
+document.getElementById('btn-ipo').addEventListener('click', () => {
+  setProgress(1.0);
+  playing = false;
+  document.getElementById('btn-play').textContent = '▶ Play';
+});
+
+// Touch support
+let touchStartX = null;
+canvas.addEventListener('touchstart', (e) => {
+  touchStartX = e.touches[0].clientX;
+  e.preventDefault();
+});
+canvas.addEventListener('touchmove', (e) => {
+  if (touchStartX !== null) {
+    const dx = e.touches[0].clientX - touchStartX;
+    progress += dx / W * 0.02;
+    progress = Math.max(0, Math.min(1, progress));
+    touchStartX = e.touches[0].clientX;
+  }
+  e.preventDefault();
+});
+canvas.addEventListener('touchend', () => {
+  touchStartX = null;
+});
+
+// Keyboard
+document.addEventListener('keydown', (e) => {
+  if (e.key === ' ') {
+    playing = !playing;
+    document.getElementById('btn-play').textContent = playing ? '⏸ Pause' : '▶ Play';
+  }
+  if (e.key === 'ArrowRight') {
+    progress = Math.min(1, progress + 0.05);
+  }
+  if (e.key === 'ArrowLeft') {
+    progress = Math.max(0, progress - 0.05);
+  }
+});
+
+// Start
+animate();
+</script>
+</body>
+</html>
